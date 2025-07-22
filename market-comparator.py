@@ -10,6 +10,7 @@ import sys
 import argparse
 from collections import defaultdict
 
+
 def bucket_exist(bucket_name):
     s3 = boto3.client('s3')
     try:
@@ -23,17 +24,19 @@ def bucket_exist(bucket_name):
             print(f"access error unknow issue {e}")
             return False
 
+
 def list_bucket_object(bucket_name):
-    s3= boto3.resource('s3')
+    s3 = boto3.resource('s3')
 
     bucket = s3.Bucket(bucket_name)
-    
+
     objects = list(bucket.objects.all())
     print(f"Objects in bucket {bucket_name}")
     for idx, obj in enumerate(objects):
         print(f"[{idx}] {obj.key}")
 
     return objects
+
 
 def choose_file_from_s3(bucket_name, objects):
     try:
@@ -45,19 +48,21 @@ def choose_file_from_s3(bucket_name, objects):
         print("Ivalid selection")
         return None
 
+
 def read_csv_from_s3(bucket_name, key):
     s3 = boto3.client('s3')
     obj = s3.get_object(Bucket=bucket_name, Key=key)
     content = obj['Body'].read().decode('utf-8')
     return csv.reader(io.StringIO(content))
 
+
 def load_csv_line(csv_lines):
     asset_data = defaultdict(list)
     header = next(csv_lines)
     idx_map = {k.strip(): i for i, k in enumerate(header)}
 
-    required_keys = ['asset_id', 'Date', 'Open', 'Close', 'High', 'Low', 'Volume']
-
+    required_keys = ['asset_id', 'Date', 'Open',
+                     'Close', 'High', 'Low', 'Volume']
 
     for row in csv_lines:
         if not row or len(row) < len(required_keys):
@@ -77,6 +82,8 @@ def load_csv_line(csv_lines):
             print(f"[ERROR] Failed to parse row: {row} -> {e}")
             continue
     return asset_data
+
+
 def compare_feed_lines(feed1, feed2):
     diffs = []
     unmatched1 = defaultdict(list)
@@ -104,21 +111,22 @@ def compare_feed_lines(feed1, feed2):
             unmatched2[asset].extend(list2[min_len:])
     return diffs, unmatched1, unmatched2
 
+
 def write_diffs_csv(diffs, unmatched1, unmatched2, output="diff_report.csv"):
     with open(output, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["Type", "Asset ID", "Index", "Feed1", "Feed2"])
 
         for d in diffs:
-            writer.writerow(["Diff", d['asset_id'], d['index'], d['feed1'], d['feed2']])
-    
+            writer.writerow(
+                ["Diff", d['asset_id'], d['index'], d['feed1'], d['feed2']])
+
         for asset, entries in unmatched1.items():
             for e in entries:
                 writer.writerow(["Missing in Feed 1", asset, "", e, ""])
 
         s3 = boto3.resource('s3')
         s3.meta.client.upload_file(output, 'myorderbook', 'diff_report.csv')
-
 
 
 def main():
@@ -164,7 +172,6 @@ def main():
         print(f"error reading from s3 {e}")
         return
 
-
     choice = input("would you like to continute (y/n)").strip().lower()
     if choice == 'y':
         for i in tqdm(range(100)):
@@ -175,9 +182,9 @@ def main():
         diffs, unmatched1, unmatched2 = compare_feed_lines(feed1, feed2)
         write_diffs_csv(diffs, unmatched1, unmatched2)
 
-
     else:
         print("aborted")
+
 
 if __name__ == "__main__":
     main()
