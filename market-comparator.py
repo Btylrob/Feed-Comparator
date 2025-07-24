@@ -11,10 +11,37 @@ import argparse
 from collections import defaultdict
 
 
-def bucket_exist(bucket_name):
+def list_s3_buckets():
+    s3 = boto3.client('s3')
+    response = s3.list_buckets()
+
+    bucket_names = [bucket['Name'] for bucket in response['Buckets']]
+    for idx, name in enumerate(bucket_names):
+        print(f"[{idx}], {name}")
+        print(60 * '_')
+
+    return bucket_names
+
+
+def choose_s3_bucket(bucket_names):
+    try:
+        idx = int(
+            input(
+                f"Select a file index from 0 to {
+                    len(bucket_names) -
+                    1}: "))
+        selected_bucket = bucket_names[idx]
+        print(f"Selected: {selected_bucket}")
+        return selected_bucket
+    except (ValueError, IndexError):
+        print("Invalid Selection")
+        return
+
+
+def bucket_exist(bucket_choice):
     s3 = boto3.client('s3')
     try:
-        s3.head_bucket(Bucket=bucket_name)
+        s3.head_bucket(Bucket=bucket_choice)
         return True
     except ClientError as e:
         error_code = int(e.response['Error']['Code'])
@@ -40,7 +67,7 @@ def list_bucket_object(bucket_name):
 
 def choose_file_from_s3(bucket_name, objects):
     try:
-        idx = int(input(f"Select a file index from 0 to {len(objects)-1}: "))
+        idx = int(input(f"Select a file index from 0 to {len(objects) - 1}: "))
         selected_key = objects[idx].key
         print(f"Selected: {selected_key}")
         return selected_key
@@ -132,29 +159,32 @@ def write_diffs_csv(diffs, unmatched1, unmatched2, output="diff_report.csv"):
 def main():
     s3 = boto3.resource('s3')
 
-    bucket_name = input("Please enter S3 bucket name")
-    if not bucket_exist(bucket_name):
+    bucket_names = list_s3_buckets()
+
+    print("Choose bucket")
+    bucket_choice = choose_s3_bucket(bucket_names)
+    if not bucket_exist(bucket_choice):
         return
 
-    objects = list_bucket_object(bucket_name)
+    objects = list_bucket_object(bucket_choice)
 
     if not objects:
         print(f"No objects in {bucket_name}")
         return
 
     print("Choose first csv")
-    key1 = choose_file_from_s3(bucket_name, objects)
+    key1 = choose_file_from_s3(bucket_choice, objects)
     if not key1:
         return
 
     print("Choose second csv")
-    key2 = choose_file_from_s3(bucket_name, objects)
+    key2 = choose_file_from_s3(bucket_choice, objects)
     if not key2:
         return
 
     try:
-        reader1_content = list(read_csv_from_s3(bucket_name, key1))
-        reader2_content = list(read_csv_from_s3(bucket_name, key2))
+        reader1_content = list(read_csv_from_s3(bucket_choice, key1))
+        reader2_content = list(read_csv_from_s3(bucket_choice, key2))
 
         print(100 * '_')
         print(f"contents of {key1}")
